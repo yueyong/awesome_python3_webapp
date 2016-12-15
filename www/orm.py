@@ -2,11 +2,13 @@
 # -*- coding: utf-8 -*-
 
 import logging
+
 import aiomysql
 
 __author__ = "Vic Yue"
 
 __pool = None
+
 
 async def create_connection_pool(loop, **kw):
     """
@@ -30,6 +32,7 @@ async def create_connection_pool(loop, **kw):
         loop=loop
     )
 
+
 async def select(sql, args, size=None):
     """
     select common method
@@ -50,6 +53,7 @@ async def select(sql, args, size=None):
                 rs = await cur.fetchall()
             logging.info("select return size:%s" % len(rs))
             return rs
+
 
 async def execute(sql, args, autocommit=True):
     """
@@ -82,11 +86,19 @@ class Field(object):
     """
     orm field class type
     """
-    def __init__(self, name, column_type, primary_key, default):
+
+    def __init__(self, name, column_type, primary_key, default, nullable):
         self.name = name
         self.column_type = column_type
         self.primary_key = primary_key
-        self.default = default
+        self._default = default
+        self.nullable = nullable
+
+    @property
+    def default(self):
+        if callable(self._default):
+            return self._default()
+        return self._default
 
     def __str__(self):
         return "<%s, %s:%s>" % (self.__class__.__name__, self.column_type, self.name)
@@ -96,32 +108,36 @@ class IntegerField(Field):
     """
     orm integer field type
     """
+
     def __init__(self, name, primary_key=False, default=0):
-        super().__init__(name, "bigint", primary_key, default)
+        super().__init__(name, "bigint", primary_key, default, False)
 
 
 class StringField(Field):
     """
     orm string field type
     """
+
     def __init__(self, name, primary_key=False, default=None, ddl="varchar(32)"):
-        super().__init__(name, ddl, primary_key, default)
+        super().__init__(name, ddl, primary_key, default, False)
 
 
 class BooleanField(Field):
     """
     orm boolean field type
     """
+
     def __init__(self, name, default=False):
-        super().__init__(name, "boolean", False, default)
+        super().__init__(name, "boolean", False, default, False)
 
 
 class FloatField(Field):
     """
     orm float field type
     """
+
     def __init__(self, name, default=0.0):
-        super().__init__(name, "real", False, default)
+        super().__init__(name, "real", False, default, False)
 
 
 class TextField(Field):
@@ -130,7 +146,33 @@ class TextField(Field):
     """
 
     def __init__(self, name, default=None):
-        super().__init__(name, "text", False, default)
+        super().__init__(name, "text", False, default, False)
+
+
+def _gen_sql(table_name, mappings, rebuild=True):
+    """
+    generate create table ddl
+    :param table_name:
+    :param mappings:
+    :return:
+    """
+    assert isinstance(table_name, str) and isinstance(mappings, dict)
+    if rebuild:
+        sql = ["--DROP EXISTS TABLE: %s" % table_name, "DROP TABLE IF EXISTS `%s`" % table_name]
+    pk = None
+    sql.append("CREATE TABLE `%s` (")
+    for v in mappings.values():
+        if v.primary_key:
+            pk = v.name
+        ddl = []
+        if not v.nullable:
+            ddl = "NOT NULL"
+        if v.defalut:
+            ddl.append("DEFAULT %s" % v.default)
+        sql.append("  `%s` %s %s" % (v.name, v.column_type, " ".join(ddl)))
+    sql.append("  PRIMARY KEY(`%s`)" % pk)
+    sql.append(");")
+    return "\n".join(sql)
 
 
 class ModelMetaclass(type):
@@ -172,11 +214,11 @@ class ModelMetaclass(type):
         attrs["__delete__"] = "DELETE FROM %s WHERE %s" % (table_name, "`%s`=?" % primary_key)
         # select sql
         attrs["__select__"] = "SELECT `%s`, %s FROM %s" % (primary_key, escaped_fields, table_name)
+        attrs["__ddl_sql__"] = lambda self: _gen_sql(table_name, mappings)
         return type.__new__(mcs, name, bases, attrs)
 
 
 class Model(dict, metaclass=ModelMetaclass):
-
     def __init__(self, **kw):
         super(Model, self).__init__(**kw)
 
@@ -198,7 +240,7 @@ class Model(dict, metaclass=ModelMetaclass):
             field = self.__mappings__[key]
             default = field.default
             if default is not None:
-                value = default() if callable(default) else default
+                value = default
                 logging.info("using default value for %s: %s" % (key, value))
                 setattr(self, key, value)
         return value
