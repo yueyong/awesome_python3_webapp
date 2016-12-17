@@ -1,6 +1,6 @@
 import logging
 import asyncio
-import www.orm as orm
+from www import orm
 from www.models import User
 
 
@@ -10,10 +10,11 @@ async def test(lp):
     print(u.__select__)
     # sql = User.__ddl_sql__()
     # print(sql)
-    await u.save()
+    # await u.save()
     ret = await User.find_all()
-    print(ret)
+    print(len(ret), ret)
 
-logging.basicConfig(level=logging.DEBUG)
-loop = asyncio.get_event_loop()
-loop.run_until_complete(test(loop))
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(test(loop))
