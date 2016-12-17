@@ -25,7 +25,7 @@ async def create_connection_pool(loop, **kw):
         user=kw["user"],
         password=kw["password"],
         db=kw["db"],
-        charset=kw.get("charset", "utf-8"),
+        charset=kw.get("charset", "utf8"),
         autocommit=kw.get("autocommit", True),
         maxsize=kw.get("maxsize", 10),
         minsize=kw.get("minsize", 1),
@@ -160,15 +160,13 @@ def _gen_sql(table_name, mappings, rebuild=True):
     if rebuild:
         sql = ["--DROP EXISTS TABLE: %s" % table_name, "DROP TABLE IF EXISTS `%s`;" % table_name]
     pk = None
-    sql.append("CREATE TABLE `%s` (")
+    sql.append("CREATE TABLE `%s` (" % table_name)
     for v in mappings.values():
         if v.primary_key:
             pk = v.name
         ddl = []
         if not v.nullable:
             ddl.append("NOT NULL")
-        if v.default:
-            ddl.append("DEFAULT %s" % v.default)
         sql.append("  `%s` %s %s" % (v.name, v.column_type, " ".join(ddl)))
     sql.append("  PRIMARY KEY(`%s`)" % pk)
     sql.append(");")
@@ -187,6 +185,8 @@ class ModelMetaclass(type):
         for k, v in attrs.items():
             if isinstance(v, Field):
                 logging.info("found mappings %s: %s" % (k, v))
+                if v.name is None:
+                    v.name = k
                 mappings[k] = v
                 if v.primary_key:
                     if primary_key:
@@ -214,7 +214,7 @@ class ModelMetaclass(type):
         attrs["__delete__"] = "DELETE FROM %s WHERE %s" % (table_name, "`%s`=?" % primary_key)
         # select sql
         attrs["__select__"] = "SELECT `%s`, %s FROM %s" % (primary_key, escaped_fields, table_name)
-        attrs["__ddl_sql__"] = lambda self: _gen_sql(table_name, mappings)
+        attrs["__ddl_sql__"] = lambda: _gen_sql(table_name, mappings)
         return type.__new__(mcs, name, bases, attrs)
 
 
