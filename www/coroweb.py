@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import logging
 import functools
 import inspect
 from aiohttp import web
 from urllib import parse
+
+from www.apis import APIError
 
 __author__ = "Vic Yue"
 
@@ -16,6 +19,7 @@ def url_route(path, method="GET"):
     :param method: request method
     :return:
     """
+
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kw):
@@ -25,6 +29,7 @@ def url_route(path, method="GET"):
         wrapper.__method__ = method
         wrapper.__route__ = path
         return wrapper
+
     return decorator
 
 
@@ -85,6 +90,7 @@ class RequestHandler(object):
     """
     Web Request Handler
     """
+
     def __init__(self, app, fn):
         self.app = app
         self._func = fn
@@ -121,4 +127,28 @@ class RequestHandler(object):
         if kw is None:
             kw = dict(**request.match_info)
         else:
-            pass
+            if not self._has_var_kw_arg and self._named_kw_args:
+                # remove all unnamed kw:
+                copy = dict()
+                for name in self._named_kw_args:
+                    if name in kw:
+                        copy[name] = kw[name]
+                kw = copy
+            # check named args:
+            for k, v in request.match_info.items():
+                if k in kw:
+                    logging.warning("Duplicate arg in named arg and kw args: %s" % k)
+                kw[k] = v
+        if self._has_request_args:
+            kw["request"] = request
+        # check required kw
+        if self._required_kw_args:
+            for name in self._required_kw_args:
+                if name not in kw:
+                    return web.HTTPBadRequest("Missing required argument: %s" % name)
+        logging.info("Call with args: %s" % str(kw))
+        try:
+            r = await self._func(**kw)
+            return r
+        except APIError as e:
+            return dict(error=e.error, data=e.data, message=e.message)
