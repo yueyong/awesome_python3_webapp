@@ -158,7 +158,7 @@ def _gen_sql(table_name, mappings, rebuild=True):
     """
     assert isinstance(table_name, str) and isinstance(mappings, dict)
     if rebuild:
-        sql = ["--DROP EXISTS TABLE: %s" % table_name, "DROP TABLE IF EXISTS `%s`;" % table_name]
+        sql = ["-- DROP EXISTS TABLE: %s" % table_name, "DROP TABLE IF EXISTS `%s`;" % table_name]
     pk = None
     sql.append("CREATE TABLE `%s` (" % table_name)
     for v in mappings.values():
@@ -167,7 +167,7 @@ def _gen_sql(table_name, mappings, rebuild=True):
         ddl = []
         if not v.nullable:
             ddl.append("NOT NULL")
-        sql.append("  `%s` %s %s" % (v.name, v.column_type, " ".join(ddl)))
+        sql.append("  `%s` %s %s," % (v.name, v.column_type, " ".join(ddl)))
     sql.append("  PRIMARY KEY(`%s`)" % pk)
     sql.append(");")
     return "\n".join(sql)
