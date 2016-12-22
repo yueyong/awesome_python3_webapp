@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import logging
+import asyncio
 import functools
 import inspect
-from aiohttp import web
+import logging
+import os
 from urllib import parse
+
+from aiohttp import web
 
 from www.apis import APIError
 
@@ -152,3 +155,42 @@ class RequestHandler(object):
             return r
         except APIError as e:
             return dict(error=e.error, data=e.data, message=e.message)
+
+
+def add_static(app):
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+    app.router.add_static("/static/", path)
+    logging.info("add static /static/ -> %s." % path)
+
+
+def add_route(app, fn):
+    method = getattr(fn, "__method__", None)
+    path = getattr(fn, "__route__", None)
+    if method is None or path is None:
+        raise ValueError("@url_route was not defined on %s" % str(fn))
+    if not asyncio.iscoroutinefunction(fn) and not inspect.isgeneratorfunction(fn):
+        fn = asyncio.coroutine(fn)
+    logging.info(
+        "add router %s %s -> %s(%s)." % (method, path, fn.__name__, ", ".join(inspect.signature(fn).parameters.keys())))
+    app.router.add_route(method, path, RequestHandler(app, fn))
+
+
+def add_routes(app, module_name):
+    """
+    auto scan specify modules
+    :param app:
+    :param module_name:
+    :return:
+    """
+    assert isinstance(module_name, str)
+    modules = module_name.split(".")
+    if len(modules) == 1:
+        mod = __import__(modules[0], globals(), locals())
+    else:
+        mod = getattr(__import__(modules[0], globals(), locals(), (modules[1])), modules[1])
+    for attr in dir(mod):
+        if attr.startswith("_"):
+            continue
+        fn = getattr(mod, attr)
+        if callable(fn) and hasattr(fn, "__method__") and hasattr(fn, "__route__"):
+            add_route(app, fn)
