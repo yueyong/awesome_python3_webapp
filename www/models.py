@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import uuid, time
-from .orm import Model, StringField, BooleanField, IntegerField, TextField
+import time
+import uuid
+
+from orm import Model, StringField, BooleanField, IntegerField, TextField
 
 __author__ = "Vic Yue"
 

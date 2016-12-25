@@ -13,6 +13,10 @@ configs = {
         "password": "usbw",
         "database": "qjcg"
     },
+    "web": {
+        "host": "127.0.0.1",
+        "port": 9000
+    },
     "session": {
         "secret": "AwEs0mE"
     }

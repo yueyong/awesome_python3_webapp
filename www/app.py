@@ -12,8 +12,9 @@ from datetime import datetime
 from aiohttp import web
 from jinja2 import Environment, FileSystemLoader
 
-from www import orm
-from www import coroweb
+import orm
+import coroweb
+from config import configs
 
 __author__ = "Vic Yue"
 
@@ -131,14 +132,16 @@ def datetime_filter(t):
 
 
 async def init(loop):
-    await orm.create_connection_pool(loop, user="root", password="usbw", db="awesome", host="127.0.0.1")
+    await orm.create_connection_pool(loop, user=configs.db.user, password=configs.db.password, db=configs.db.database,
+                                     host=configs.db.host)
     app = web.Application(loop=loop, middlewares=(
         logger_factory, data_factory, response_factory
     ))
     init_jinja2(app, filters={"datetime": datetime_filter})
     coroweb.add_routes(app, "handlers")
     coroweb.add_static(app)
-    host, port = ("127.0.0.1", 9000)
+    host = configs.web.host
+    port = configs.web.port
     srv = await loop.create_server(app.make_handler(), host, port)
     logging.info("Server is running at http://%s:%s" % (host, port))
     return srv

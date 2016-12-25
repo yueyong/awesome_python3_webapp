@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import www.config_default as default
+import config_default as default
 
 __author__ = "Vic Yue"
 
@@ -47,7 +47,7 @@ def to_dict(d):
 configs = default.configs
 
 try:
-    import www.config_override as override
+    import config_override as override
     configs = merge(configs, override.configs)
 except ImportError:
     pass
